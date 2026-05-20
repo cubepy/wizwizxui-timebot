@@ -1,3 +1,6 @@
+<h3 align="center"/>برای دریافت نسخه پیشرفته لطفا به کانال @wizvip سر بزنید  </h3>
+
+
 <p align="center">
   <a href="https://github.com/wizwizdev/wizwizxui-timebot" target="_blank" rel="noopener noreferrer">
     <picture>
