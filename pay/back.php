@@ -163,6 +163,44 @@ if(mysqli_num_rows($payInfo)==0){
     }
 }
 }
+elseif(isset($_GET['cubepay'])){
+    $hash_id = $_GET['hash_id'];
+    $stmt = $connection->prepare("SELECT * FROM `pays` WHERE `hash_id` = ? AND (`state` = 'pending' OR `state` = 'send')");
+    $stmt->bind_param("s", $hash_id);
+    $stmt->execute();
+    $payInfo = $stmt->get_result();
+    $stmt->close();
+
+    if(mysqli_num_rows($payInfo)==0){
+        showForm("کد پرداخت یافت نشد","خطا!");
+    }else{
+        $payParam = $payInfo->fetch_assoc();
+        $rowId = $payParam['id'];
+        $authority = $payParam['payid'];
+
+        $curl = curl_init("https://cubevps.ir/smspay/api/verify-payment.php");
+        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($curl, CURLOPT_POST, true);
+        curl_setopt($curl, CURLOPT_POSTFIELDS, json_encode(["authority" => $authority]));
+        curl_setopt($curl, CURLOPT_HTTPHEADER, [
+            "Content-Type: application/json",
+            "Authorization: Bearer " . $paymentKeys['cubepay'],
+        ]);
+        $result = json_decode(curl_exec($curl), true);
+        curl_close($curl);
+
+        if(!empty($result['success']) && $result['status'] == 'verified'){
+            doAction($rowId, "cubepay");
+        }else{
+            $stmt = $connection->prepare("UPDATE `pays` SET `state` = 'canceled' WHERE `hash_id` = ?");
+            $stmt->bind_param("s", $hash_id);
+            $stmt->execute();
+            $stmt->close();
+
+            showForm("پرداخت شما انجام نشد!","درگاه CubePay");
+        }
+    }
+}
 else{
 showForm("درگاه پرداخت شناسایی نشد","خطا!");
 exit();
@@ -196,7 +234,7 @@ elseif($payType == "INCREASE_WALLET") $payDescription ="شارژ کیف پول";
 elseif(preg_match('/^INCREASE_DAY_(\d+)_(\d+)/',$payType)) $payDescription = "افزایش زمان اکانت";
 elseif(preg_match('/^INCREASE_VOLUME_(\d+)_(\d+)/',$payType)) $payDescription = "افزایش حجم اکانت";    
 
-if($gateType == "zarinpal" || $gateType == "nextpay") $payDescription = "خرید اشتراک";
+if($gateType == "zarinpal" || $gateType == "nextpay" || $gateType == "cubepay") $payDescription = "خرید اشتراک";
 
 $stmt = $connection->prepare("UPDATE `pays` SET `state` = 'paid' WHERE `id` =?");
 $stmt->bind_param("i", $payRowId);
