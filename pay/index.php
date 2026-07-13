@@ -5,7 +5,7 @@ include '../config.php';
 
 //====================//  Get  //==============================
 $hash_id = $_GET['hash_id'];
-if(!isset($_GET['zarinpal']) && !isset($_GET['nowpayment']) && !isset($_GET['nextpay'])){
+if(!isset($_GET['zarinpal']) && !isset($_GET['nowpayment']) && !isset($_GET['nextpay']) && !isset($_GET['cubepay'])){
     showForm("درگاه پرداخت شناسایی نشد!");
     exit();
 }
@@ -165,6 +165,38 @@ if(mysqli_num_rows($payInfo)==0){
         }
         
         
+    }
+    elseif(isset($_GET['cubepay'])){
+        $callbackUrl = $botUrl . "pay/back.php?cubepay&hash_id=$hash_id";
+        $amountRial = $amount * 10; // wizwiz مبلغ رو به تومان نگه می‌داره، CubePay ریال می‌خواد
+
+        $curl = curl_init("https://cubevps.ir/smspay/api/create-payment.php");
+        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($curl, CURLOPT_POST, true);
+        curl_setopt($curl, CURLOPT_POSTFIELDS, json_encode([
+            "amount" => $amountRial,
+            "order_id" => $hash_id,
+            "callback_url" => $callbackUrl,
+            "type" => "card",
+            "description" => $type,
+        ], JSON_UNESCAPED_UNICODE));
+        curl_setopt($curl, CURLOPT_HTTPHEADER, [
+            "Content-Type: application/json",
+            "Authorization: Bearer " . $paymentKeys['cubepay'],
+        ]);
+        $result = json_decode(curl_exec($curl), true);
+        curl_close($curl);
+
+        if(!empty($result['success'])){
+            $authority = $result['authority'];
+            $stmt = $connection->prepare("UPDATE `pays` SET `payid` = ? WHERE `hash_id` = ?");
+            $stmt->bind_param("ss", $authority, $hash_id);
+            $stmt->execute();
+            $stmt->close();
+            header('Location: ' . $result['payment_link']);
+        }else{
+            showForm($result['message'] ?? "تراکنش با خطا مواجه شده است");
+        }
     }
 }
 
